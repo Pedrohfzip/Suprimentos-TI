@@ -1,4 +1,4 @@
-import UserService from "../Services/UserService";
+import UserService from "../Services/UserService.js";
 
 const UserController = {
 

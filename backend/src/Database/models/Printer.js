@@ -13,7 +13,7 @@ export default (sequelize) => {
         allowNull: false
     },
     marca: {
-        type: Sequelize.STRING,
+        type: DataTypes.STRING,
         allowNull: false
     },
     codigo_ref: {
