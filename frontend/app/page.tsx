@@ -37,6 +37,7 @@ export default function SuppliesPage() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [pendingStock, setPendingStock] = useState<{ id: string; newQty: number } | null>(null);
 
   // ── Carregar impressoras do backend ──────────────────────────────
   const loadPrinters = useCallback(async () => {
@@ -107,17 +108,27 @@ export default function SuppliesPage() {
     }
   }
 
-  // ── Ajustar estoque (+/-) ─────────────────────────────────────────
-  async function adjustStock(id: string, delta: number) {
+  // ── Solicitar ajuste de estoque (abre modal com input livre) ─────────────────
+  function requestAdjustStock(id: string, delta: number) {
     const current = supplies.find((s) => s.id === id);
     if (!current) return;
-    const novaQtd = Math.max(0, current.quantidade_estoque + delta);
+    const initial = Math.max(0, current.quantidade_estoque + delta);
+    setPendingStock({ id, newQty: initial });
+  }
+
+  // ── Confirmar e salvar no banco ──────────────────────────────────────────
+  async function confirmAdjustStock() {
+    if (!pendingStock) return;
+    const { id, newQty } = pendingStock;
+    const current = supplies.find((s) => s.id === id);
+    if (!current) return;
+    setPendingStock(null);
     // Atualização otimista
     setSupplies((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, quantidade_estoque: novaQtd } : s))
+      prev.map((s) => (s.id === id ? { ...s, quantidade_estoque: newQty } : s))
     );
     try {
-      await updateStock(id, novaQtd);
+      await updateStock(id, newQty);
     } catch {
       // Reverter em caso de erro
       setSupplies((prev) =>
@@ -275,7 +286,7 @@ export default function SuppliesPage() {
                           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor(item.quantidade_estoque)}`} />
                           <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 rounded-xl px-1 py-0.5">
                             <button
-                              onClick={() => adjustStock(item.id, -1)}
+                              onClick={() => requestAdjustStock(item.id, -1)}
                               disabled={item.quantidade_estoque === 0}
                               title="Diminuir"
                               className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all text-base font-bold leading-none"
@@ -286,7 +297,7 @@ export default function SuppliesPage() {
                               {item.quantidade_estoque}
                             </span>
                             <button
-                              onClick={() => adjustStock(item.id, 1)}
+                              onClick={() => requestAdjustStock(item.id, 1)}
                               title="Aumentar"
                               className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-all text-base font-bold leading-none"
                             >
@@ -412,6 +423,74 @@ export default function SuppliesPage() {
           </div>
         </div>
       )}
+
+      {/* ── Stock Confirm Modal ── */}
+      {pendingStock && (() => {
+        const item = supplies.find((s) => s.id === pendingStock.id);
+        if (!item) return null;
+        const { newQty } = pendingStock;
+        const isIncrease = newQty >= item.quantidade_estoque;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 dark:border-slate-800 p-6">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
+                Atualizar Estoque
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">{item.nome}</p>
+
+              {/* Preview atual → novo */}
+              <div className="flex items-center justify-center gap-4 mb-5 p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                <div className="text-center">
+                  <p className="text-xs text-slate-400 mb-1">Atual</p>
+                  <span className="text-2xl font-bold text-slate-400">{item.quantidade_estoque}</span>
+                </div>
+                <span className="text-slate-300 dark:text-slate-600 text-xl">→</span>
+                <div className="text-center">
+                  <p className="text-xs text-slate-400 mb-1">Novo</p>
+                  <span className={`text-2xl font-bold ${newQty === 0 ? 'text-rose-600' : newQty <= 3 ? 'text-amber-600' : 'text-emerald-600'
+                    }`}>{newQty}</span>
+                </div>
+              </div>
+
+              {/* Input de nova quantidade */}
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                  Nova quantidade
+                </label>
+                <input
+                  id="input-nova-qtd"
+                  type="number"
+                  min={0}
+                  value={newQty}
+                  onChange={(e) =>
+                    setPendingStock((p) => p ? { ...p, newQty: Math.max(0, Number(e.target.value)) } : p)
+                  }
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-center font-semibold text-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-colors dark:text-slate-200"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setPendingStock(null)}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  id="btn-confirmar-estoque"
+                  onClick={confirmAdjustStock}
+                  disabled={newQty === item.quantidade_estoque}
+                  className={`flex-1 px-4 py-2 text-sm font-medium text-white rounded-xl transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${isIncrease ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'
+                    }`}
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Delete Confirm Modal ── */}
       {deleteId && (

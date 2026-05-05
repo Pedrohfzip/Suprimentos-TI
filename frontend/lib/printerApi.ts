@@ -1,6 +1,6 @@
 // URL base da API - defina NEXT_PUBLIC_API_URL no seu .env.local
 // Exemplo: NEXT_PUBLIC_API_URL=http://localhost:3001
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export type Printer = {
   id: string;
