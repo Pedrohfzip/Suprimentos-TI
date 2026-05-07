@@ -7,7 +7,7 @@ const PrinterController = {
             const printers = await PrinterService.getAllPrinters();
             res.status(200).json(printers);
         } catch (error) {
-            res.status(500).json({ error: 'Erro ao buscar impressoras' });
+            res.status(500).json({ error: error.message });
         }
     },
 

@@ -7,7 +7,8 @@ const PrinterService = {
             const printers = await db.Printer.findAll();
             return printers;
         } catch (error) {
-            throw new Error('Erro ao buscar impressoras');
+            console.error("Erro real:", error);
+            throw new Error(`Erro ao buscar impressoras: ${error.message}`);
         }
     },
 
