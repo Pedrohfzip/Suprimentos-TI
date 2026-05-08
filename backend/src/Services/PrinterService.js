@@ -41,6 +41,17 @@ const PrinterService = {
         } catch (error) {
             throw new Error('Erro ao atualizar nome da impressora');
         }
+    },
+
+    async updatePrinter(id, data) {
+        try {
+            const printer = await db.Printer.findByPk(id);
+            if (!printer) throw new Error('Impressora não encontrada');
+            await printer.update(data);
+            return printer;
+        } catch (error) {
+            throw new Error('Erro ao atualizar impressora');
+        }
     }
 
 }

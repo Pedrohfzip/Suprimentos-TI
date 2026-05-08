@@ -7,3 +7,4 @@ printerRouter.get('/', PrinterController.getAllPrinters);
 printerRouter.post('/', PrinterController.createPrinter);
 printerRouter.patch('/:id/stock', PrinterController.updateStock);
 printerRouter.patch('/:id/name', PrinterController.updateName);
+printerRouter.put('/:id', PrinterController.updatePrinter);

@@ -16,13 +16,15 @@ import {
   Loader2,
   Network,
   ExternalLink,
-  MapPin
+  MapPin,
+  FileText
 } from 'lucide-react';
 import {
   getPrinters,
   createPrinter,
   updateStock,
   updateName,
+  updatePrinter,
   type Printer as PrinterType,
   getActivePrinters,
   createActivePrinter,
@@ -32,33 +34,34 @@ import {
 
 type Tab = 'stock' | 'active';
 
-const emptyStockForm = { nome: '', marca: '', codigo_ref: '', quantidade_estoque: 0, nivel_estoque: 'normal', preco_unitario: 0, dias_encomenda: 0, quantidade_encomenda: 0 };
+const emptyStockForm = { nome: '', marca: '', codigo_ref: '', quantidade_estoque: 0, nivel_estoque: 'normal', preco_unitario: '' as string | number, dias_encomenda: 0, quantidade_encomenda: 0 };
 const emptyActiveForm = { estacao: '', ip: '', local: '', usuario_rede: '', modelo: '', patrimonio: '', n_serie: '', fabricante: '' };
 
 export default function SuppliesPage() {
   const router = useRouter();
-  
+
   // Tabs
   const [activeTab, setActiveTab] = useState<Tab>('stock');
-  
+
   // Data
   const [supplies, setSupplies] = useState<PrinterType[]>([]);
   const [activePrinters, setActivePrinters] = useState<ActivePrinter[]>([]);
-  
+
   // Loading & Error
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // UI State
   const [searchQuery, setSearchQuery] = useState('');
-  
+  const [selectedSupplies, setSelectedSupplies] = useState<string[]>([]);
+
   // Modals Stock
   const [showStockModal, setShowStockModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [stockForm, setStockForm] = useState(emptyStockForm);
   const [pendingStock, setPendingStock] = useState<{ id: string; newQty: number } | null>(null);
   const [deleteStockId, setDeleteStockId] = useState<string | null>(null);
-  
+
   // Modals Active
   const [showActiveModal, setShowActiveModal] = useState(false);
   const [activeForm, setActiveForm] = useState(emptyActiveForm);
@@ -118,6 +121,18 @@ export default function SuppliesPage() {
   }, [filteredActive]);
 
   // ── Actions: Stock ──────────────────────────────────────────────
+  function toggleSelection(id: string) {
+    setSelectedSupplies((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  }
+
+  function handleGerarCotacao() {
+    const selectedItems = supplies.filter((s) => selectedSupplies.includes(s.id));
+    localStorage.setItem('cotacao_items', JSON.stringify(selectedItems));
+    router.push('/cotacao');
+  }
+
   function openNewStock() {
     setEditingId(null);
     setStockForm(emptyStockForm);
@@ -132,7 +147,7 @@ export default function SuppliesPage() {
       codigo_ref: s.codigo_ref,
       quantidade_estoque: s.quantidade_estoque,
       nivel_estoque: s.nivel_estoque,
-      preco_unitario: s.preco_unitario || 0,
+      preco_unitario: s.preco_unitario ? String(s.preco_unitario).replace('.', ',') : '',
       dias_encomenda: s.dias_encomenda || 0,
       quantidade_encomenda: s.quantidade_encomenda || 0
     });
@@ -143,11 +158,18 @@ export default function SuppliesPage() {
     if (!stockForm.nome.trim() || !stockForm.codigo_ref.trim()) return;
     try {
       setSaving(true);
+
+      const precoParsed = typeof stockForm.preco_unitario === 'string'
+        ? parseFloat(stockForm.preco_unitario.replace(',', '.')) || 0
+        : stockForm.preco_unitario;
+
+      const formToSave = { ...stockForm, preco_unitario: precoParsed };
+
       if (editingId) {
-        const updated = await updateName(editingId, stockForm.nome);
+        const updated = await updatePrinter(editingId, formToSave);
         setSupplies((prev) => prev.map((s) => (s.id === editingId ? updated : s)));
       } else {
-        const created = await createPrinter(stockForm);
+        const created = await createPrinter(formToSave as any);
         setSupplies((prev) => [...prev, created]);
       }
       setShowStockModal(false);
@@ -251,35 +273,44 @@ export default function SuppliesPage() {
               Gerencie o estoque de suprimentos e as impressoras ativas na rede.
             </p>
           </div>
-          <button
-            onClick={activeTab === 'stock' ? openNewStock : openNewActive}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl font-medium text-sm shadow shadow-indigo-600/30 transition-all group"
-          >
-            <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
-            {activeTab === 'stock' ? 'Novo Suprimento' : 'Nova Impressora Ativa'}
-          </button>
+          <div className="flex items-center gap-3">
+            {activeTab === 'stock' && selectedSupplies.length > 0 && (
+              <button
+                onClick={handleGerarCotacao}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl font-medium text-sm shadow shadow-emerald-600/30 transition-all group"
+              >
+                <FileText className="w-4 h-4" />
+                Gerar Cotação ({selectedSupplies.length})
+              </button>
+            )}
+            <button
+              onClick={activeTab === 'stock' ? openNewStock : openNewActive}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl font-medium text-sm shadow shadow-indigo-600/30 transition-all group"
+            >
+              <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
+              {activeTab === 'stock' ? 'Novo Suprimento' : 'Nova Impressora Ativa'}
+            </button>
+          </div>
         </div>
 
         {/* ── Tabs ── */}
         <div className="flex space-x-1 bg-slate-200/50 dark:bg-slate-800/50 p-1 rounded-xl mb-8 w-max">
           <button
             onClick={() => setActiveTab('stock')}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'stock'
-                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === 'stock'
+              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
           >
             <Package className="w-4 h-4" />
             Estoque de Suprimentos
           </button>
           <button
             onClick={() => setActiveTab('active')}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'active'
-                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === 'active'
+              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
           >
             <Network className="w-4 h-4" />
             Impressoras na Rede
@@ -338,6 +369,20 @@ export default function SuppliesPage() {
                   <table className="w-full text-left text-sm">
                     <thead className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 text-slate-500">
                       <tr>
+                        <th className="px-4 py-4 w-12 text-center">
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
+                            checked={filteredStock.length > 0 && selectedSupplies.length === filteredStock.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedSupplies(filteredStock.map((s) => s.id));
+                              } else {
+                                setSelectedSupplies([]);
+                              }
+                            }}
+                          />
+                        </th>
                         <th className="px-6 py-4 font-medium"><span className="flex items-center gap-1.5"><Hash className="w-3.5 h-3.5" /> ID</span></th>
                         <th className="px-6 py-4 font-medium">Nome do Suprimento</th>
                         <th className="px-6 py-4 font-medium">Preço Un.</th>
@@ -349,7 +394,15 @@ export default function SuppliesPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {filteredStock.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 group">
+                        <tr key={item.id} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 group ${selectedSupplies.includes(item.id) ? 'bg-indigo-50/50 dark:bg-indigo-500/10' : ''}`}>
+                          <td className="px-4 py-4 text-center">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
+                              checked={selectedSupplies.includes(item.id)}
+                              onChange={() => toggleSelection(item.id)}
+                            />
+                          </td>
                           <td className="px-6 py-4 text-slate-400 font-mono text-xs">#{String(item.id).padStart(4, '0')}</td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
@@ -511,7 +564,7 @@ export default function SuppliesPage() {
                 { label: 'Marca', key: 'marca', type: 'text' },
                 { label: 'Código de Referência', key: 'codigo_ref', type: 'text' },
                 { label: 'Quantidade Inicial', key: 'quantidade_estoque', type: 'number' },
-                { label: 'Preço Unitário (R$)', key: 'preco_unitario', type: 'number', step: '0.01' },
+                { label: 'Preço Unitário (R$)', key: 'preco_unitario', type: 'text' },
                 { label: 'Encomenda em (dias)', key: 'dias_encomenda', type: 'number' },
                 { label: 'Quantidade a Encomendar', key: 'quantidade_encomenda', type: 'number' },
               ].map(({ label, key, type, step }) => (
@@ -519,9 +572,8 @@ export default function SuppliesPage() {
                   <label className="block text-sm font-medium mb-1.5">{label}</label>
                   <input
                     type={type}
-                    step={step}
                     value={(stockForm as any)[key]}
-                    onChange={(e) => setStockForm((f) => ({ ...f, [key]: type === 'number' ? Number(e.target.value) : e.target.value }))}
+                    onChange={(e) => setStockForm((f) => ({ ...f, [key]: type === 'number' ? (e.target.value === '' ? 0 : Number(e.target.value)) : e.target.value }))}
                     className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border rounded-xl"
                   />
                 </div>
@@ -555,7 +607,7 @@ export default function SuppliesPage() {
           </div>
         </div>
       )}
-      
+
       {deleteStockId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-sm text-center">

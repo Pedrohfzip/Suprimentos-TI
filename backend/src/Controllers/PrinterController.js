@@ -13,14 +13,8 @@ const PrinterController = {
 
     async createPrinter(req, res) {
         try {
-            const { nome, marca, codigo_ref, quantidade_estoque, nivel_estoque } = req.body;
-            const printer = await PrinterService.createPrinter({
-                nome,
-                marca,
-                codigo_ref,
-                quantidade_estoque,
-                nivel_estoque,
-            });
+            const printerData = req.body;
+            const printer = await PrinterService.createPrinter(printerData);
             res.status(201).json(printer);
         } catch (error) {
             res.status(500).json({ error: 'Erro ao cadastrar impressora' });
@@ -46,6 +40,17 @@ const PrinterController = {
             res.status(200).json(printer);
         } catch (error) {
             res.status(500).json({ error: 'Erro ao atualizar nome da impressora' });
+        }
+    },
+
+    async updatePrinter(req, res) {
+        try {
+            const { id } = req.params;
+            const data = req.body;
+            const printer = await PrinterService.updatePrinter(id, data);
+            res.status(200).json(printer);
+        } catch (error) {
+            res.status(500).json({ error: 'Erro ao atualizar impressora' });
         }
     }
 

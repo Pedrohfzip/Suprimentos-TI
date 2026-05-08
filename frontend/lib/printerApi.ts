@@ -70,6 +70,17 @@ export async function updateName(id: string, nome: string): Promise<Printer> {
   return res.json();
 }
 
+// ── Atualizar todos os dados da impressora ──────────────────────────────────
+export async function updatePrinter(id: string, data: Partial<Printer>): Promise<Printer> {
+  const res = await fetch(`${API_URL}/printers/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Erro ao atualizar impressora');
+  return res.json();
+}
+
 // ── Impressoras Ativas ───────────────────────────────────────────────────────
 
 export async function getActivePrinters(): Promise<ActivePrinter[]> {
