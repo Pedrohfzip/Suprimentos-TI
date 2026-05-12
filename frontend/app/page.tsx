@@ -17,7 +17,10 @@ import {
   Network,
   ExternalLink,
   MapPin,
-  FileText
+  FileText,
+  ArrowUpDown,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import {
   getPrinters,
@@ -33,6 +36,7 @@ import {
 } from '../lib/printerApi';
 
 type Tab = 'stock' | 'active';
+type SortColumn = 'id' | 'nome' | 'preco_unitario' | 'quantidade_estoque' | 'valor_estoque' | 'dias_encomenda';
 
 const emptyStockForm = { nome: '', marca: '', codigo_ref: '', quantidade_estoque: 0, nivel_estoque: 'normal', preco_unitario: '' as string | number, dias_encomenda: 0, quantidade_encomenda: 0 };
 const emptyActiveForm = { estacao: '', ip: '', local: '', usuario_rede: '', modelo: '', patrimonio: '', n_serie: '', fabricante: '' };
@@ -54,6 +58,7 @@ export default function SuppliesPage() {
   // UI State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSupplies, setSelectedSupplies] = useState<string[]>([]);
+  const [sortConfig, setSortConfig] = useState<{ key: SortColumn; direction: 'asc' | 'desc' } | null>(null);
 
   // Modals Stock
   const [showStockModal, setShowStockModal] = useState(false);
@@ -61,6 +66,7 @@ export default function SuppliesPage() {
   const [stockForm, setStockForm] = useState(emptyStockForm);
   const [pendingStock, setPendingStock] = useState<{ id: string; newQty: number } | null>(null);
   const [deleteStockId, setDeleteStockId] = useState<string | null>(null);
+
 
   // Modals Active
   const [showActiveModal, setShowActiveModal] = useState(false);
@@ -98,6 +104,29 @@ export default function SuppliesPage() {
       s.codigo_ref.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const sortedStock = useMemo(() => {
+    let sortableItems = [...filteredStock];
+    if (sortConfig !== null) {
+      sortableItems.sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
+        switch (sortConfig.key) {
+          case 'id': aValue = a.id; bValue = b.id; break;
+          case 'nome': aValue = a.nome.toLowerCase(); bValue = b.nome.toLowerCase(); break;
+          case 'preco_unitario': aValue = Number(a.preco_unitario) || 0; bValue = Number(b.preco_unitario) || 0; break;
+          case 'quantidade_estoque': aValue = a.quantidade_estoque; bValue = b.quantidade_estoque; break;
+          case 'valor_estoque': aValue = (Number(a.preco_unitario) || 0) * a.quantidade_estoque; bValue = (Number(b.preco_unitario) || 0) * b.quantidade_estoque; break;
+          case 'dias_encomenda': aValue = a.dias_encomenda || 0; bValue = b.dias_encomenda || 0; break;
+          default: return 0;
+        }
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [filteredStock, sortConfig]);
+
   const totalStock = supplies.reduce((a, b) => a + b.quantidade_estoque, 0);
   const lowStock = supplies.filter((s) => s.quantidade_estoque > 0 && s.quantidade_estoque <= 3).length;
   const outOfStock = supplies.filter((s) => s.quantidade_estoque === 0).length;
@@ -121,6 +150,21 @@ export default function SuppliesPage() {
   }, [filteredActive]);
 
   // ── Actions: Stock ──────────────────────────────────────────────
+  const requestSort = (key: SortColumn) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const renderSortIcon = (key: SortColumn) => {
+    if (sortConfig?.key !== key) return <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-50 group-hover:opacity-100 transition-opacity" />;
+    return sortConfig.direction === 'asc'
+      ? <ChevronUp className="w-3.5 h-3.5 text-indigo-500" />
+      : <ChevronDown className="w-3.5 h-3.5 text-indigo-500" />;
+  };
+
   function toggleSelection(id: string) {
     setSelectedSupplies((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
@@ -383,17 +427,17 @@ export default function SuppliesPage() {
                             }}
                           />
                         </th>
-                        <th className="px-6 py-4 font-medium"><span className="flex items-center gap-1.5"><Hash className="w-3.5 h-3.5" /> ID</span></th>
-                        <th className="px-6 py-4 font-medium">Nome do Suprimento</th>
-                        <th className="px-6 py-4 font-medium">Preço Un.</th>
-                        <th className="px-6 py-4 font-medium">Quantidade</th>
-                        <th className="px-6 py-4 font-medium">Valor de Estoque</th>
-                        <th className="px-6 py-4 font-medium">Prox. Encomenda</th>
+                        <th className="px-6 py-4 font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 group transition-colors select-none" onClick={() => requestSort('id')}><span className="flex items-center gap-1.5"><Hash className="w-3.5 h-3.5" /> ID {renderSortIcon('id')}</span></th>
+                        <th className="px-6 py-4 font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 group transition-colors select-none" onClick={() => requestSort('nome')}><span className="flex items-center gap-1.5">Nome do Suprimento {renderSortIcon('nome')}</span></th>
+                        <th className="px-6 py-4 font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 group transition-colors select-none" onClick={() => requestSort('preco_unitario')}><span className="flex items-center gap-1.5">Preço Un. {renderSortIcon('preco_unitario')}</span></th>
+                        <th className="px-6 py-4 font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 group transition-colors select-none" onClick={() => requestSort('quantidade_estoque')}><span className="flex items-center gap-1.5">Quantidade {renderSortIcon('quantidade_estoque')}</span></th>
+                        <th className="px-6 py-4 font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 group transition-colors select-none" onClick={() => requestSort('valor_estoque')}><span className="flex items-center gap-1.5">Valor de Estoque {renderSortIcon('valor_estoque')}</span></th>
+                        <th className="px-6 py-4 font-medium cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 group transition-colors select-none" onClick={() => requestSort('dias_encomenda')}><span className="flex items-center gap-1.5">Prox. Encomenda {renderSortIcon('dias_encomenda')}</span></th>
                         <th className="px-6 py-4 font-medium text-right">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {filteredStock.map((item) => (
+                      {sortedStock.map((item) => (
                         <tr key={item.id} className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 group ${selectedSupplies.includes(item.id) ? 'bg-indigo-50/50 dark:bg-indigo-500/10' : ''}`}>
                           <td className="px-4 py-4 text-center">
                             <input
@@ -440,8 +484,8 @@ export default function SuppliesPage() {
                           </td>
                         </tr>
                       ))}
-                      {filteredStock.length === 0 && (
-                        <tr><td colSpan={7} className="px-6 py-16 text-center text-slate-400">Nenhum suprimento encontrado.</td></tr>
+                      {sortedStock.length === 0 && (
+                        <tr><td colSpan={8} className="px-6 py-16 text-center text-slate-400">Nenhum suprimento encontrado.</td></tr>
                       )}
                     </tbody>
                   </table>
